@@ -64,6 +64,7 @@ export function ListingForm() {
   const [description, setDescription] = useState("");
   const [price, setPrice] = useState("");
   const [sellerEmail, setSellerEmail] = useState("");
+  const [location, setLocation] = useState("Palo Alto, CA");
   const [category, setCategory] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -159,7 +160,7 @@ export function ListingForm() {
       const safeFileName = photo.name.replace(/[^\w.-]/g, "_");
       uploadedPath = `${crypto.randomUUID()}-${safeFileName}`;
       const { error: uploadError } = await supabase.storage
-        .from("listing-photos")
+        .from("listing-images")
         .upload(uploadedPath, photo, {
           cacheControl: "3600",
           contentType: photo.type,
@@ -172,7 +173,7 @@ export function ListingForm() {
       }
 
       const { data: imageData } = supabase.storage
-        .from("listing-photos")
+        .from("listing-images")
         .getPublicUrl(uploadedPath);
       const { data: listing, error: insertError } = await supabase
         .from("listings")
@@ -183,13 +184,14 @@ export function ListingForm() {
           seller_email: sellerEmail.trim(),
           category: category as ListingCategory,
           image_url: imageData.publicUrl,
+          location: location.trim() || "Palo Alto, CA",
         })
         .select("id")
         .single();
 
       if (insertError) {
         const { error: cleanupError } = await supabase.storage
-          .from("listing-photos")
+          .from("listing-images")
           .remove([uploadedPath]);
         if (cleanupError) {
           console.error("Unable to clean up an unused listing photo:", cleanupError);
@@ -203,7 +205,7 @@ export function ListingForm() {
     } catch (error) {
       if (uploadedPath) {
         const { error: cleanupError } = await getSupabaseClient()
-          .storage.from("listing-photos").remove([uploadedPath]);
+          .storage.from("listing-images").remove([uploadedPath]);
         if (cleanupError) {
           console.error("Unable to clean up an unused listing photo:", cleanupError);
         }
@@ -400,6 +402,19 @@ export function ListingForm() {
         <div id="seller-email-error">
           <FieldError>{errors.sellerEmail}</FieldError>
         </div>
+      </div>
+
+      <div>
+        <label htmlFor="location" className="mb-2 block text-sm font-semibold text-slate-800">
+          Location
+        </label>
+        <Input
+          id="location"
+          value={location}
+          maxLength={255}
+          onChange={(event) => setLocation(event.target.value)}
+          placeholder="Palo Alto, CA"
+        />
       </div>
 
       {submitError && (

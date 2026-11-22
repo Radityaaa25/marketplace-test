@@ -19,9 +19,11 @@ const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 export function MessageSellerDialog({
   listingId,
   listingTitle,
+  sellerEmail,
 }: {
   listingId: string;
   listingTitle: string;
+  sellerEmail: string;
 }) {
   const [open, setOpen] = useState(false);
   const [buyerName, setBuyerName] = useState("");
@@ -56,6 +58,7 @@ export function MessageSellerDialog({
         listing_id: listingId,
         buyer_name: buyerName.trim(),
         buyer_email: buyerEmail.trim(),
+        seller_email: sellerEmail,
         message: message.trim(),
       });
 

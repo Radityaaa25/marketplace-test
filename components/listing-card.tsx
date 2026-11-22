@@ -44,7 +44,9 @@ export function ListingCard({
           {listing.title}
         </h2>
         <p className="mt-2 truncate text-xs text-slate-500">
-          {listing.category} <span aria-hidden="true">·</span>{" "}
+          {listing.category} <span aria-hidden="true">·</span> {listing.location}
+        </p>
+        <p className="mt-1 truncate text-xs text-slate-400">
           {formatPostedDate(listing.created_at)}
         </p>
       </div>

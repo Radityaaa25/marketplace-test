@@ -19,14 +19,14 @@ Next.js 15 App Router, React 19, TypeScript (strict), Tailwind CSS, shadcn/ui-st
 
 ## Supabase setup
 
-This app can share your existing Supabase project with the Wall app. It creates only the `listings` and `messages` tables, Marketplace policies/indexes, and the `listing-photos` bucket. It does **not** modify the existing `posts` table or `wall-photos` bucket.
+This app can share your existing Supabase project with the Wall app. It creates or adds Marketplace columns to the `listings` and `messages` tables, Marketplace policies/indexes, and the `listing-images` bucket. It does **not** modify the existing `posts` table or `wall-photos` bucket. If an earlier Marketplace setup created `listing-photos`, that bucket is left in place and is no longer used.
 
 1. Open the **existing** Supabase project used by the Wall app.
-2. In the Supabase dashboard, open **SQL Editor**, create a new query, paste in [`supabase/marketplace.sql`](./supabase/marketplace.sql), and run it. The script is idempotent and only creates Marketplace objects; it does not drop or change the Wall objects.
-3. Open **Table Editor** and verify that `listings` and `messages` exist. In **Storage**, verify the `listing-photos` bucket exists and is marked **Public**. If the bucket already existed and is private, make it public in Storage settings; the SQL intentionally leaves an existing bucket unchanged.
+2. In the Supabase dashboard, open **SQL Editor**, create a new query, paste in [`supabase/marketplace.sql`](./supabase/marketplace.sql), and run it. It is safe to rerun to add the new Marketplace columns and policies; it does not drop or change the Wall objects.
+3. Open **Table Editor** and verify that `listings` and `messages` exist, including `listings.location`, `listings.updated_at`, and `messages.seller_email`. In **Storage**, verify the `listing-images` bucket exists and is marked **Public**. If the bucket already existed and is private, make it public in Storage settings; the SQL intentionally leaves an existing bucket's settings unchanged.
 4. In the project settings, copy the Project URL and the `anon` / publishable key. Do not use a `service_role` key in the browser or in Vercel client-visible variables.
 
-`listings` is publicly readable and insertable via the anon role. `messages` allows anonymous inserts only; public reads are not granted. Listing photos can be read publicly and inserted into the `listing-photos` bucket. No Realtime subscription is used.
+`listings` is publicly readable and insertable via the anon role. `messages` allows anonymous inserts only; public reads are not granted because messages contain private buyer emails. The supplied guide's public message-read and listing-update policies are intentionally not enabled: this app has no login, and exposing messages would disclose buyer email addresses. Listing images can be read publicly and inserted into the `listing-images` bucket. No Realtime subscription is used.
 
 ## Environment variables
 
@@ -78,7 +78,7 @@ npm run build
 ## Troubleshooting
 
 - **Listings are not saving:** Confirm both Supabase public environment variables are set for the active environment and redeploy after changing them. Check that `marketplace.sql` ran successfully and that the `listings` anon insert policy is present.
-- **Photo upload fails:** Verify the bucket is named exactly `listing-photos`, is public, and has the Marketplace public-read and anon-insert policies. The existing `wall-photos` bucket is separate and is not used by this app.
+- **Photo upload fails:** Verify the bucket is named exactly `listing-images`, is public, and has the Marketplace public-read and anon-insert policies. The existing `wall-photos` bucket is separate and is not used by this app.
 - **Vercel reports missing environment variables:** Add them under the new Vercel project's Settings → Environment Variables for the relevant environment, then redeploy. Never put the service-role key in the app.
 - **Search returns nothing:** Search matches listing titles or descriptions, is case-insensitive, and is debounced by 350 ms. Try a shorter keyword or clear the category filter.
 - **Messages fail with a foreign-key error:** The `listing_id` must refer to a row in `listings`. Open the listing from the current site and try again; verify its row still exists and that `marketplace.sql` created the `messages_listing_id_fkey` relationship.
@@ -95,4 +95,4 @@ npm run build
 
 ### Reviewer notes draft
 
-I built this Marketplace app with help from AI tools and verified the core create, browse, search, and message flows. It shares my existing Supabase project with my Wall app, while keeping Marketplace data in separate `listings` and `messages` tables and using a separate `listing-photos` storage bucket. Messages are insert-only for anonymous visitors, and email notifications are optional. The live app is deployed at **[add production URL]** and the source is available at **[add public GitHub URL]**.
+I built this Marketplace app with help from AI tools and verified the core create, browse, search, and message flows. It shares my existing Supabase project with my Wall app, while keeping Marketplace data in separate `listings` and `messages` tables and using a separate `listing-images` storage bucket. Messages are insert-only for anonymous visitors, and no email service or custom domain is required. The live app is deployed at **[add production URL]** and the source is available at **[add public GitHub URL]**.

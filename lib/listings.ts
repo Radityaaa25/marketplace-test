@@ -3,7 +3,7 @@ import type { Listing } from "@/lib/types";
 import type { CategoryFilter } from "@/lib/constants";
 
 const LISTING_FIELDS =
-  "id,title,description,price,category,seller_email,image_url,created_at";
+  "id,title,description,price,category,seller_email,image_url,location,created_at,updated_at";
 
 export async function getListings({
   category,

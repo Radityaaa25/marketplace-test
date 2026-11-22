@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, CalendarDays, Mail, Tag } from "lucide-react";
+import { ArrowLeft, CalendarDays, Mail, MapPin, Tag } from "lucide-react";
 import { MessageSellerDialog } from "@/components/message-seller-dialog";
 import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
@@ -96,6 +96,10 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
                   <CalendarDays size={15} aria-hidden="true" />
                   Listed {formatPostedDate(listing.created_at)}
                 </span>
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin size={15} aria-hidden="true" />
+                  {listing.location}
+                </span>
               </div>
             </section>
 
@@ -116,6 +120,7 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
                 <MessageSellerDialog
                   listingId={listing.id}
                   listingTitle={listing.title}
+                  sellerEmail={listing.seller_email}
                 />
               </div>
             </section>

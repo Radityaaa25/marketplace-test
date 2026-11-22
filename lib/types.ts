@@ -17,16 +17,23 @@ export type Listing = {
   category: ListingCategory;
   seller_email: string;
   image_url: string;
+  location: string;
   created_at: string;
+  updated_at: string;
 };
 
-export type ListingInsert = Omit<Listing, "id" | "created_at">;
+export type ListingInsert = Omit<
+  Listing,
+  "id" | "created_at" | "updated_at" | "location"
+> &
+  Partial<Pick<Listing, "updated_at" | "location">>;
 
 export type Message = {
   id: string;
   listing_id: string;
   buyer_name: string;
   buyer_email: string;
+  seller_email: string;
   message: string;
   created_at: string;
 };
