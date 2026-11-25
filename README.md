@@ -1,6 +1,6 @@
 # Marketplace
 
-A responsive local buy-and-sell app built as a job-application project. Browse listings, search by keyword, create a listing with a photo, and message a seller without creating an account.
+A Facebook Marketplace-style app built for a job application test. It supports browsing, search, category filters, listing creation with photo uploads, seller messaging, Stripe Connect seller onboarding, and direct-charge Checkout purchases.
 
 **Live URL:** _Add the public Vercel production URL here_
 
@@ -8,36 +8,73 @@ A responsive local buy-and-sell app built as a job-application project. Browse l
 
 ## Features
 
-- Browse newest-first listings in grid or list view, with category filters and debounced title/description search.
-- Publish a listing with a validated photo upload, description, price, seller email, and category.
-- View listing details and send a message to the seller; messages are stored without exposing the messages table to public reads.
-- Responsive layouts, loading skeletons, empty/error states, and a not-found page.
+- Responsive newest-first listing grid and list view.
+- Category tabs, 350 ms debounced title/description search, loading, empty, and error states.
+- Listing creation with photo preview, validation, Supabase photo upload, and redirect to the detail page.
+- Listing detail with description, seller email, location, date, SOLD state, and seller messaging.
+- Stripe Sandbox seller onboarding and direct-charge Buy Now checkout.
+- Stripe webhook order confirmation, paid order records, listing SOLD state, and success-page polling.
+- No email provider or custom domain is required.
 
 ## Stack
 
-Next.js 15 App Router, React 19, TypeScript (strict), Tailwind CSS, shadcn/ui-style primitives, and Supabase Postgres and Storage. The app is deployable on Vercel and does not require an email provider or custom domain.
+Next.js 15 App Router, React 19, TypeScript, Tailwind CSS, shadcn/ui-style primitives, Supabase Postgres and Storage, Stripe Connect Express, and Stripe Checkout.
+
+## Architecture
+
+```text
+Seller -> /sell/connect -> Stripe Express onboarding
+         -> account.updated webhook -> sellers table
+
+Buyer -> Listing detail -> Buy Now
+      -> Server reads listing and seller
+      -> Checkout Session on connected account
+      -> Direct charge + 10% application fee
+      -> checkout.session.completed Connect webhook
+      -> orders paid + listing sold
+```
+
+The platform fee is a constant:
+
+```text
+PLATFORM_FEE_PERCENT = 10
+application_fee_amount = round(price_in_cents * 10 / 100)
+```
 
 ## Supabase setup
 
-This app can share your existing Supabase project with the Wall app. It creates or adds Marketplace columns to the `listings` and `messages` tables, Marketplace policies/indexes, and the `listing-images` bucket. It does **not** modify the existing `posts` table or `wall-photos` bucket. If an earlier Marketplace setup created `listing-photos`, that bucket is left in place and is no longer used.
+Run SQL files in the Supabase **SQL Editor** of the existing project shared with the Wall app:
 
-1. Open the **existing** Supabase project used by the Wall app.
-2. In the Supabase dashboard, open **SQL Editor**, create a new query, paste in [`supabase/marketplace.sql`](./supabase/marketplace.sql), and run it. It is safe to rerun to add the new Marketplace columns and policies; it does not drop or change the Wall objects.
-3. Open **Table Editor** and verify that `listings` and `messages` exist, including `listings.location`, `listings.updated_at`, and `messages.seller_email`. In **Storage**, verify the `listing-images` bucket exists and is marked **Public**. If the bucket already existed and is private, make it public in Storage settings; the SQL intentionally leaves an existing bucket's settings unchanged.
-4. In the project settings, copy the Project URL and the `anon` / publishable key. Do not use a `service_role` key in the browser or in Vercel client-visible variables.
+1. Run `supabase/marketplace.sql` for Marketplace tables and the `listing-images` bucket.
+2. Run `supabase/stripe.sql` for `sellers`, `orders`, and listing SOLD columns.
 
-`listings` is publicly readable and insertable via the anon role. `messages` allows anonymous inserts only; public reads are not granted because messages contain private buyer emails. The supplied guide's public message-read and listing-update policies are intentionally not enabled: this app has no login, and exposing messages would disclose buyer email addresses. Listing images can be read publicly and inserted into the `listing-images` bucket. No Realtime subscription is used.
+The scripts are idempotent and do not modify or drop the existing `posts` table or `wall-photos` bucket. `sellers` and `orders` have RLS enabled with no anon policies. `listings` has no anon UPDATE policy, so only the service-role server client can change listing status.
+
+## Optional seed
+
+To add demo listings:
+
+```text
+1. Replace the seller email in supabase/stripe-seed.sql.
+2. Run the file in Supabase SQL Editor.
+3. Onboard that exact lowercase email in /sell/connect.
+```
 
 ## Environment variables
 
-Copy `.env.example` to `.env.local` and set:
+Copy `.env.example` to `.env.local`:
 
 ```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_ID.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_SUPABASE_ANON_KEY
+SUPABASE_SERVICE_ROLE_KEY=YOUR_SUPABASE_SERVICE_ROLE_KEY
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-Keep `.env.local` and all real credentials out of Git. Only the two public Supabase variables are needed. Messages are saved directly to Supabase, with no email service or custom domain required.
+Do not put `SUPABASE_SERVICE_ROLE_KEY` or `STRIPE_SECRET_KEY` in browser code or public variables. `.env.local` is gitignored. `NEXT_PUBLIC_APP_URL` should be the public production URL on Vercel; local development falls back to the request origin.
 
 ## Run locally
 
@@ -46,53 +83,87 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). Before publishing a listing, run the Supabase SQL and configure both public Supabase environment variables.
+Open `http://localhost:3000`.
 
-Before deploying, run:
+Local Stripe webhook forwarding:
+
+```bash
+stripe listen --api-key <your stripe secret key> --forward-connect-to localhost:3000/api/stripe/webhook
+```
+
+Copy the temporary `whsec_...` printed by Stripe CLI into `STRIPE_WEBHOOK_SECRET` in `.env.local`, then restart Next.js.
+
+Before deploying:
 
 ```bash
 npm run lint
 npm run build
+git grep -n "sk_test\|whsec_" -- ':!package-lock.json' || true
 ```
 
-## Publish to GitHub
+## Stripe webhook registration script
 
-1. Sign in to GitHub and select **New repository**. Choose a repository name such as `marketplace-app`, set visibility to **Public**, and create it **without** adding a README, license, or `.gitignore` (this project already has those files and Git history).
-2. From this project folder, add the new repository as `origin` and push the existing `main` branch:
+Create a production webhook after deployment:
+
+```bash
+node --env-file=.env.local scripts/create-webhook.mjs https://YOUR-PUBLIC-PRODUCTION-DOMAIN.vercel.app/api/stripe/webhook
+```
+
+Or set `WEBHOOK_URL` and run:
+
+```bash
+node --env-file=.env.local scripts/create-webhook.mjs
+```
+
+The script creates a Connect endpoint for `checkout.session.completed` and `account.updated` and prints the signing secret once.
+
+## Deploy to GitHub and Vercel
+
+1. Run all SQL files in the existing Supabase project.
+2. Create `.env.local` and test Stripe locally with Stripe CLI. Never commit real keys.
+3. Push this repository to the existing public GitHub repository:
 
    ```bash
-   git remote add origin https://github.com/YOUR-USERNAME/marketplace-app.git
-   git push -u origin main
+   git push origin main
+   git grep -n "sk_test\|whsec_" -- ':!package-lock.json' || true
    ```
 
-3. Replace `YOUR-USERNAME` with your GitHub username. The public repository URL is `https://github.com/YOUR-USERNAME/marketplace-app`.
+4. Open the existing Vercel project, add all variables under **Settings → Environment Variables**, and deploy production.
+5. Copy the public production URL marked by Vercel; do not use a preview URL.
+6. Run the webhook script with that URL.
+7. Copy the newly printed `whsec_...` into `STRIPE_WEBHOOK_SECRET` in Vercel, then redeploy production.
 
-## Deploy a new Vercel project
+## Seller and buyer test flow
 
-1. Sign in to Vercel and choose **Add New → Project**. Import the public `marketplace-app` GitHub repository. This creates a **new Vercel project**; do not attach the Wall app's existing Vercel project.
-2. In the new project's **Settings → Environment Variables**, add `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY` with the same values used locally. Select **Production**, **Preview**, and **Development** as appropriate.
-3. Save the variables. If a deployment was already created before adding them, open **Deployments**, choose the latest deployment's menu, and select **Redeploy**. Otherwise, Vercel will deploy from the import automatically.
-4. Wait for the production deployment to complete. In the new Vercel project's **Overview** or **Deployments**, open the deployment marked **Production** and copy its domain (for example, `marketplace-app-your-team.vercel.app`). That is the **public production URL**; do not submit a Preview deployment URL.
-5. Add the production URL to the Live URL field at the top of this README and verify creating a listing and sending a message against the existing Supabase project.
+1. Open `/sell/connect`.
+2. Enter a seller email and complete Stripe Express onboarding using the [Stripe test documentation](https://docs.stripe.com/connect/testing).
+3. Create a listing using the exact same email, normalized to lowercase.
+4. Verify the detail page shows **Buy Now**.
+5. Complete Stripe Checkout using `4242 4242 4242 4242`, a future expiry, any CVC, and any ZIP.
+6. Verify the success page reaches **Payment confirmed**.
+7. In Supabase, verify the listing is `status = 'sold'` and its matching order is `status = 'paid'`.
 
 ## Troubleshooting
 
-- **Listings are not saving:** Confirm both Supabase public environment variables are set for the active environment and redeploy after changing them. Check that `marketplace.sql` ran successfully and that the `listings` anon insert policy is present.
-- **Photo upload fails:** Verify the bucket is named exactly `listing-images`, is public, and has the Marketplace public-read and anon-insert policies. The existing `wall-photos` bucket is separate and is not used by this app.
-- **Vercel reports missing environment variables:** Add them under the new Vercel project's Settings → Environment Variables for the relevant environment, then redeploy. Never put the service-role key in the app.
-- **Search returns nothing:** Search matches listing titles or descriptions, is case-insensitive, and is debounced by 350 ms. Try a shorter keyword or clear the category filter.
-- **Messages fail with a foreign-key error:** The `listing_id` must refer to a row in `listings`. Open the listing from the current site and try again; verify its row still exists and that `marketplace.sql` created the `messages_listing_id_fkey` relationship.
+- **Webhook returns 400:** Verify `STRIPE_WEBHOOK_SECRET` matches the active listener or production endpoint and the route reads the raw body.
+- **Buy Now is absent:** The seller must have `charges_enabled = true`, the email must match case-insensitively, and the listing must be available with a price of at least $0.50.
+- **Listing is not marked sold:** Confirm a Connect webhook is registered with `connect: true`, the service role key is server-only and valid, and the webhook secret is correct.
+- **No such account:** Verify the server passed `{ stripeAccount: connectedAccountId }` to Checkout. Never use the connected account ID in the browser.
+- **Events from other candidates appear:** This shared sandbox is expected. Unknown account IDs and order IDs are ignored and return 200.
+- **Listings not saving:** Check public Supabase env variables and the anon INSERT RLS policy.
+- **Photo upload fails:** Verify `listing-images` is public and has the insert/read policies.
+- **Messages fail:** Ensure `listing_id` references an existing `listings.id`.
+
 ## Final submission checklist
 
-- [ ] Public Vercel **production** URL: `________________________________`
-- [ ] Public GitHub repository URL: `________________________________`
-- [ ] Screenshot — home page with category tabs
-- [ ] Screenshot — search results
-- [ ] Screenshot — create listing form
-- [ ] Screenshot — listing detail
-- [ ] Screenshot — Message Seller dialog and success confirmation
-- [ ] Optional demo video (under 3 minutes) showing create, search, and message flows
+- [ ] Public Vercel production URL
+- [ ] Public GitHub URL
+- [ ] Screenshot: seller onboarding
+- [ ] Screenshot: Buy Now in Stripe Checkout
+- [ ] Screenshot: paid success page
+- [ ] Screenshot: paid order and sold listing in Supabase
+- [ ] Optional demo video under 3 minutes
 
 ### Reviewer notes draft
 
-I built this Marketplace app with help from AI tools and verified the core create, browse, search, and message flows. It shares my existing Supabase project with my Wall app, while keeping Marketplace data in separate `listings` and `messages` tables and using a separate `listing-images` storage bucket. Messages are insert-only for anonymous visitors, and no email service or custom domain is required. The live app is deployed at **[add production URL]** and the source is available at **[add public GitHub URL]**.
+I built this Marketplace app with help from AI tools and verified seller onboarding, direct-charge Checkout, and the Stripe webhook flow. The sample listing is [add title] and can be bought by the buyer using Stripe test card 4242 4242 4242 4242; the onboarded seller is [add exact lowercase seller email]. Payments use Stripe Connect direct charges with a 10% application fee, and a successful webhook marks the listing sold.
