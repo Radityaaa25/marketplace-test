@@ -12,6 +12,7 @@ export function ListingCard({
   view?: "grid" | "list";
 }) {
   const isList = view === "list";
+  const sold = listing.status === "sold";
 
   return (
     <Link
@@ -32,9 +33,17 @@ export function ListingCard({
           alt={listing.title}
           fill
           sizes={isList ? "(max-width: 640px) 112px, 160px" : "(max-width: 768px) 50vw, 240px"}
-          className="object-cover transition duration-300 group-hover:scale-[1.035]"
+          className={cn(
+            "object-cover transition duration-300 group-hover:scale-[1.035]",
+            sold && "opacity-45 grayscale",
+          )}
           unoptimized
         />
+        {sold && (
+          <span className="absolute left-3 top-3 rounded-md bg-slate-900 px-2.5 py-1 text-xs font-bold text-white">
+            SOLD
+          </span>
+        )}
       </div>
       <div className={cn("min-w-0", isList ? "p-4 sm:p-5" : "p-3.5")}>
         <p className="text-lg font-bold tracking-tight text-slate-900">

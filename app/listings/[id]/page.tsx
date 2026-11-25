@@ -8,6 +8,8 @@ import { Navbar } from "@/components/navbar";
 import { Button } from "@/components/ui/button";
 import { formatPostedDate, formatPrice } from "@/lib/constants";
 import { getListingById } from "@/lib/listings";
+import { getSupabaseAdmin } from "@/lib/supabase-admin";
+import { BuyNowButton } from "@/components/buy-now-button";
 
 type ListingPageProps = {
   params: Promise<{ id: string }>;
@@ -56,6 +58,16 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
     notFound();
   }
 
+  let sellerReady = false;
+  if (listing.status !== "sold" && listing.price >= 0.5) {
+    const { data: seller } = await getSupabaseAdmin()
+      .from("sellers")
+      .select("charges_enabled")
+      .ilike("email", listing.seller_email)
+      .maybeSingle();
+    sellerReady = seller?.charges_enabled === true;
+  }
+
   return (
     <div className="min-h-screen bg-[#f7f8fa]">
       <Navbar initialQuery="" />
@@ -78,6 +90,11 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
               className="object-cover"
               unoptimized
             />
+            {listing.status === "sold" && (
+              <span className="absolute left-5 top-5 rounded-lg bg-slate-950 px-3 py-1.5 text-sm font-bold text-white">
+                SOLD
+              </span>
+            )}
           </div>
           <div className="space-y-4">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
@@ -123,6 +140,12 @@ export default async function ListingDetailPage({ params }: ListingPageProps) {
                   sellerEmail={listing.seller_email}
                 />
               </div>
+              <BuyNowButton
+                listingId={listing.id}
+                sellerReady={sellerReady}
+                status={listing.status}
+                price={listing.price}
+              />
             </section>
           </div>
         </div>

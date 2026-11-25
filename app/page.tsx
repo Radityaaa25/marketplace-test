@@ -20,7 +20,11 @@ export default async function Home({ searchParams }: HomePageProps) {
   let errorMessage: string | null = null;
   try {
     const result = await getListings({ category, query });
-    listings = result.data;
+    listings = result.data.map((listing) => ({
+      ...listing,
+      status: listing.status ?? "available",
+      sold_at: listing.sold_at ?? null,
+    }));
     errorMessage = result.error;
   } catch (error) {
     errorMessage =
