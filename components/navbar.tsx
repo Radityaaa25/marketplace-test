@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Plus, Store } from "lucide-react";
+import { Plus, Store, WalletCards } from "lucide-react";
 import { SearchBar } from "@/components/search-bar";
 import { Button } from "@/components/ui/button";
 
@@ -22,6 +22,13 @@ export function Navbar({ initialQuery }: { initialQuery: string }) {
         <div className="min-w-0 flex-1">
           <SearchBar initialQuery={initialQuery} />
         </div>
+        <Link
+          href="/sell/connect"
+          className="hidden shrink-0 items-center gap-1.5 text-sm font-semibold text-slate-600 hover:text-[#1877f2] lg:flex"
+        >
+          <WalletCards size={17} aria-hidden="true" />
+          Sell / Get paid
+        </Link>
         <Button
           href="/listings/new"
           size="small"
