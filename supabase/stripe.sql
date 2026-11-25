@@ -18,6 +18,7 @@ alter table public.sellers
 
 alter table public.sellers enable row level security;
 revoke all on table public.sellers from anon, authenticated, public;
+grant select, insert, update, delete on table public.sellers to service_role;
 
 alter table public.listings
   add column if not exists status text not null default 'available';
@@ -82,3 +83,118 @@ create index if not exists orders_listing_id_idx
 
 alter table public.orders enable row level security;
 revoke all on table public.orders from anon, authenticated, public;
+grant select, insert, update, delete on table public.orders to service_role;
+grant select, insert, update on table public.listings to service_role;
+
+create or replace function public.marketplace_finalize_order(
+  p_order_id uuid,
+  p_session_id text,
+  p_payment_intent_id text,
+  p_amount_total integer,
+  p_application_fee_amount integer,
+  p_currency text,
+  p_buyer_email text,
+  p_stripe_account_id text,
+  p_paid_at timestamptz
+)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_order public.orders%rowtype;
+  v_listing public.listings%rowtype;
+begin
+  select *
+    into v_order
+    from public.orders
+   where id = p_order_id
+   for update;
+
+  if not found then
+    return 'not_found';
+  end if;
+
+  if v_order.status = 'paid' then
+    if v_order.stripe_session_id = p_session_id then
+      return 'paid';
+    end if;
+    return 'already_paid';
+  end if;
+
+  if v_order.status in ('needs_refund', 'expired') then
+    return v_order.status;
+  end if;
+
+  if v_order.stripe_account_id is distinct from p_stripe_account_id
+     or v_order.listing_id is null then
+    return 'not_found';
+  end if;
+
+  select *
+    into v_listing
+    from public.listings
+   where id = v_order.listing_id
+   for update;
+
+  if not found then
+    return 'not_found';
+  end if;
+
+  if v_listing.status = 'sold' then
+    update public.orders
+       set status = 'needs_refund',
+           stripe_session_id = p_session_id,
+           stripe_payment_intent_id = p_payment_intent_id,
+           amount_total = coalesce(p_amount_total, amount_total),
+           application_fee_amount = coalesce(p_application_fee_amount, application_fee_amount),
+           currency = coalesce(p_currency, currency),
+           buyer_email = coalesce(p_buyer_email, buyer_email),
+           stripe_account_id = p_stripe_account_id
+     where id = p_order_id;
+    return 'needs_refund';
+  end if;
+
+  update public.listings
+     set status = 'sold',
+         sold_at = coalesce(p_paid_at, now())
+   where id = v_listing.id
+     and status = 'available';
+
+  if not found then
+    update public.orders
+       set status = 'needs_refund',
+           stripe_session_id = p_session_id,
+           stripe_payment_intent_id = p_payment_intent_id,
+           amount_total = coalesce(p_amount_total, amount_total),
+           application_fee_amount = coalesce(p_application_fee_amount, application_fee_amount),
+           currency = coalesce(p_currency, currency),
+           buyer_email = coalesce(p_buyer_email, buyer_email),
+           stripe_account_id = p_stripe_account_id
+     where id = p_order_id;
+    return 'needs_refund';
+  end if;
+
+  update public.orders
+     set status = 'paid',
+         stripe_session_id = p_session_id,
+         stripe_payment_intent_id = p_payment_intent_id,
+         amount_total = coalesce(p_amount_total, amount_total),
+         application_fee_amount = coalesce(p_application_fee_amount, application_fee_amount),
+         currency = coalesce(p_currency, currency),
+         buyer_email = coalesce(p_buyer_email, buyer_email),
+         stripe_account_id = p_stripe_account_id,
+         paid_at = coalesce(p_paid_at, now())
+   where id = p_order_id;
+
+  return 'paid';
+end;
+$$;
+
+revoke all on function public.marketplace_finalize_order(
+  uuid, text, text, integer, integer, text, text, text, timestamptz
+) from public, anon, authenticated;
+grant execute on function public.marketplace_finalize_order(
+  uuid, text, text, integer, integer, text, text, text, timestamptz
+) to service_role;

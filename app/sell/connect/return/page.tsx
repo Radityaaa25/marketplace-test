@@ -37,18 +37,21 @@ export default async function ConnectReturnPage({
           payouts_enabled: account.payouts_enabled ?? false,
           details_submitted: account.details_submitted ?? false,
         };
-        await admin
+        const { error: updateError } = await admin
           .from("sellers")
           .update(update)
           .eq("stripe_account_id", seller.stripe_account_id);
+        if (updateError) {
+          throw new Error("Could not save seller onboarding status.");
+        }
         complete = account.charges_enabled === true;
         if (!complete) {
           resumeUrl = `/sell/connect/refresh?email=${encodeURIComponent(parsed.data)}`;
         }
       }
-    } catch (error) {
+    } catch {
       console.error("Could not refresh seller onboarding status.");
-      void error;
+      complete = false;
     }
   }
 

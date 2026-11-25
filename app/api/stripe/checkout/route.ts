@@ -132,10 +132,17 @@ export async function POST(request: Request) {
       { stripeAccount: seller.stripe_account_id },
     );
 
-    await admin
+    const { error: sessionSaveError } = await admin
       .from("orders")
       .update({ stripe_session_id: session.id })
       .eq("id", orderId);
+    if (sessionSaveError) {
+      console.error("Could not save the Stripe Checkout session to its order.");
+      return NextResponse.json(
+        { error: "Could not finish setting up checkout." },
+        { status: 500 },
+      );
+    }
 
     if (!session.url) {
       return NextResponse.json(

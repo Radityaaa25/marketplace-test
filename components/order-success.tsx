@@ -26,10 +26,8 @@ function formatCents(amount: number | null, currency: string): string {
 
 export function OrderSuccess({
   sessionId,
-  connectedAccountId,
 }: {
   sessionId: string | null;
-  connectedAccountId: string | null;
 }) {
   const [order, setOrder] = useState<OrderSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -47,7 +45,7 @@ export function OrderSuccess({
     async function poll() {
       try {
         const response = await fetch(
-          `/api/stripe/order?session_id=${encodeURIComponent(sessionId ?? "")}&account=${encodeURIComponent(connectedAccountId ?? "")}`,
+          `/api/stripe/order?session_id=${encodeURIComponent(sessionId ?? "")}`,
           { cache: "no-store" },
         );
         const payload = (await response.json()) as
@@ -65,7 +63,11 @@ export function OrderSuccess({
         }
         if ("id" in payload) {
           setOrder(payload);
-          if (payload.status === "paid" || payload.status === "needs_refund") {
+          if (
+            payload.status === "paid" ||
+            payload.status === "needs_refund" ||
+            payload.status === "expired"
+          ) {
             stopped = true;
             return;
           }
@@ -94,7 +96,7 @@ export function OrderSuccess({
         window.clearTimeout(timer);
       }
     };
-  }, [sessionId, connectedAccountId]);
+  }, [sessionId]);
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm sm:p-8">
@@ -134,6 +136,15 @@ export function OrderSuccess({
           </h1>
           <p className="mt-2 text-sm text-slate-500">
             This listing was already sold. The payment must be refunded.
+          </p>
+        </>
+      ) : order?.status === "expired" ? (
+        <>
+          <h1 className="mt-4 text-xl font-bold text-slate-900">
+            Checkout expired
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            This payment session expired. Return to the listing to try again.
           </p>
         </>
       ) : (

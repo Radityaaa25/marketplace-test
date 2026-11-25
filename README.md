@@ -46,7 +46,7 @@ application_fee_amount = round(price_in_cents * 10 / 100)
 Run SQL files in the Supabase **SQL Editor** of the existing project shared with the Wall app:
 
 1. Run `supabase/marketplace.sql` for Marketplace tables and the `listing-images` bucket.
-2. Run `supabase/stripe.sql` for `sellers`, `orders`, and listing SOLD columns.
+2. Run `supabase/stripe.sql` for `sellers`, `orders`, listing SOLD columns, and the atomic order-finalization function. Run this latest version even if you previously ran an earlier version of the Stripe SQL.
 
 The scripts are idempotent and do not modify or drop the existing `posts` table or `wall-photos` bucket. `sellers` and `orders` have RLS enabled with no anon policies. `listings` has no anon UPDATE policy, so only the service-role server client can change listing status.
 
@@ -103,7 +103,13 @@ git grep -n "sk_test\|whsec_" -- ':!package-lock.json' || true
 
 ## Stripe webhook registration script
 
-Stripe Sandbox permits a maximum of 16 test webhook endpoints. If that limit is reached, open Stripe Dashboard → Developers → Webhooks and delete unused test endpoints before continuing.
+To safely inspect the shared sandbox endpoints without printing any secret:
+
+```bash
+node --env-file=.env.local scripts/list-webhooks.mjs
+```
+
+Stripe Sandbox permits a maximum of 16 test webhook endpoints. If that limit is reached and there is no endpoint for your URL, contact the test organizer to remove an unused endpoint or register yours. Do not remove endpoints belonging to other candidates.
 
 You do not need to create a personal Stripe account. The supplied sandbox keys belong to the shared Stripe test account. Do not delete endpoint URLs belonging to other candidate applications unless you are certain they are yours or already unused.
 
@@ -119,7 +125,7 @@ Or set `WEBHOOK_URL` and run:
 node --env-file=.env.local scripts/create-webhook.mjs
 ```
 
-The script creates a Connect endpoint for `checkout.session.completed` and `account.updated` and prints the signing secret once.
+The script creates a Connect endpoint for `checkout.session.completed` and `account.updated` and prints the signing secret once (or saves it to `.env.local` with `--save-local`). Success-page polling also verifies a pending Checkout Session directly with Stripe using the connected account stored in the order. The webhook remains required for production event delivery and account updates.
 
 ## Deploy to GitHub and Vercel
 

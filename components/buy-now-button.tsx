@@ -27,8 +27,10 @@ export function BuyNowButton({
   let reason: string | null = null;
   if (status === "sold") {
     reason = "Sold";
-  } else if (price < 0.5) {
+  } else if (price === 0) {
     reason = "Free item";
+  } else if (price < 0.5) {
+    reason = "Minimum purchase is $0.50";
   } else if (!sellerReady) {
     reason = "Seller hasn't connected Stripe yet";
   }

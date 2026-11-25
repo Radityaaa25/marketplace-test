@@ -120,7 +120,22 @@ export type Database = {
       };
     };
     Views: Record<string, never>;
-    Functions: Record<string, never>;
+    Functions: {
+      marketplace_finalize_order: {
+        Args: {
+          p_order_id: string;
+          p_session_id: string;
+          p_payment_intent_id: string | null;
+          p_amount_total: number | null;
+          p_application_fee_amount: number | null;
+          p_currency: string | null;
+          p_buyer_email: string | null;
+          p_stripe_account_id: string;
+          p_paid_at: string;
+        };
+        Returns: string;
+      };
+    };
     Enums: Record<string, never>;
     CompositeTypes: Record<string, never>;
   };
