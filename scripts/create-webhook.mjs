@@ -24,9 +24,13 @@ try {
   const existing = await stripe.webhookEndpoints.list({ limit: 100 });
   const matching = existing.data.find(
     (endpoint) => {
+      if (!endpoint.url) {
+        return false;
+      }
       const normalizedEndpointUrl = endpoint.url
-        ?.replace(/\/+$/, "")
-        .replace(/\/api\/stripe\/webhook$/, "");
+        .replace(/([^:]\/)\/+/g, "$1")
+        .replace(/\/api\/stripe\/webhook$/, "")
+        .replace(/\/+$/, "");
       return normalizedEndpointUrl === webhookUrl;
     },
   );
@@ -75,7 +79,8 @@ try {
   const message = error instanceof Error ? error.message : "Unknown Stripe error";
   if (message.includes("maximum of 16 test webhook endpoints")) {
     console.error("Stripe Sandbox already has 16 webhook endpoints.");
-    console.error("Open Stripe Dashboard -> Developers -> Webhooks, delete unused test endpoints, then run this command again.");
+    console.error("No endpoint for this app was found, so one existing unused test endpoint must be deleted.");
+    console.error("Open Stripe Dashboard -> Developers -> Webhooks, delete only an endpoint you or the candidate no longer uses, then run this command again.");
     process.exit(1);
   }
   console.error(`Could not create webhook: ${message}`);

@@ -105,6 +105,8 @@ git grep -n "sk_test\|whsec_" -- ':!package-lock.json' || true
 
 Stripe Sandbox permits a maximum of 16 test webhook endpoints. If that limit is reached, open Stripe Dashboard → Developers → Webhooks and delete unused test endpoints before continuing.
 
+You do not need to create a personal Stripe account. The supplied sandbox keys belong to the shared Stripe test account. Do not delete endpoint URLs belonging to other candidate applications unless you are certain they are yours or already unused.
+
 Create a production webhook after deployment:
 
 ```bash
