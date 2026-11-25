@@ -1,7 +1,12 @@
 import Stripe from "stripe";
+import fs from "node:fs";
+import path from "node:path";
 
 const secretKey = process.env.STRIPE_SECRET_KEY;
-const cliUrl = process.argv[2];
+const args = process.argv.slice(2);
+const replace = args.includes("--replace");
+const saveLocal = args.includes("--save-local");
+const cliUrl = args.find((argument) => !argument.startsWith("--"));
 const webhookUrl = (cliUrl ?? process.env.WEBHOOK_URL)?.replace(/\/+$/, "").replace(/\/api\/stripe\/webhook$/, "");
 
 if (!secretKey) {
@@ -27,11 +32,16 @@ try {
   );
 
   if (matching) {
-    console.log("A matching Stripe webhook endpoint already exists:");
-    console.log(`URL: ${matching.url}`);
-    console.log(`Webhook ID: ${matching.id}`);
-    console.log("The signing secret is not available again. Use the secret from its Dashboard creation page or rotate it in Stripe Dashboard.");
-    process.exit(0);
+    if (replace) {
+      console.log(`Replacing existing endpoint ${matching.id}.`);
+      await stripe.webhookEndpoints.del(matching.id);
+    } else {
+      console.log("A matching Stripe webhook endpoint already exists:");
+      console.log(`URL: ${matching.url}`);
+      console.log(`Webhook ID: ${matching.id}`);
+      console.log("Use --replace to delete this URL's endpoint and create a new one.");
+      process.exit(0);
+    }
   }
 
   const endpoint = await stripe.webhookEndpoints.create({
@@ -46,8 +56,21 @@ try {
   console.log("Stripe Connect webhook created:");
   console.log(`URL: ${endpoint.url}`);
   console.log(`Webhook ID: ${endpoint.id}`);
-  console.log(`Signing secret: ${endpoint.secret}`);
-  console.log("Keep this signing secret in STRIPE_WEBHOOK_SECRET; it is shown only once.");
+  if (saveLocal && endpoint.secret) {
+    const envPath = path.resolve(process.cwd(), ".env.local");
+    const existingEnv = fs.existsSync(envPath)
+      ? fs.readFileSync(envPath, "utf8")
+      : "";
+    const line = `STRIPE_WEBHOOK_SECRET=${endpoint.secret}`;
+    const updatedEnv = /^STRIPE_WEBHOOK_SECRET=.*$/m.test(existingEnv)
+      ? existingEnv.replace(/^STRIPE_WEBHOOK_SECRET=.*$/m, line)
+      : `${existingEnv}${existingEnv.endsWith("\n") || existingEnv.length === 0 ? "" : "\n"}${line}\n`;
+    fs.writeFileSync(envPath, updatedEnv, "utf8");
+    console.log("Signing secret saved to the gitignored .env.local file.");
+  } else {
+    console.log("Signing secret: shown only once by Stripe.");
+    console.log("Set endpoint.secret as STRIPE_WEBHOOK_SECRET locally and in Vercel.");
+  }
 } catch (error) {
   const message = error instanceof Error ? error.message : "Unknown Stripe error";
   if (message.includes("maximum of 16 test webhook endpoints")) {
