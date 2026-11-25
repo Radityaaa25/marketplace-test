@@ -103,6 +103,8 @@ git grep -n "sk_test\|whsec_" -- ':!package-lock.json' || true
 
 ## Stripe webhook registration script
 
+Stripe Sandbox permits a maximum of 16 test webhook endpoints. If that limit is reached, open Stripe Dashboard → Developers → Webhooks and delete unused test endpoints before continuing.
+
 Create a production webhook after deployment:
 
 ```bash
